@@ -1,0 +1,53 @@
+<resources>
+    <string name="app_name">SafeVault</string>
+
+    <!-- Lock screen -->
+    <string name="lock_title">SafeVault is locked</string>
+    <string name="lock_subtitle">Authenticate to open your encrypted vault</string>
+    <string name="lock_unlock">Unlock</string>
+    <string name="biometric_prompt_title">Unlock SafeVault</string>
+    <string name="biometric_prompt_subtitle">Confirm your identity to continue</string>
+    <string name="biometric_prompt_negative">Cancel</string>
+    <string name="biometric_not_available">Biometric authentication is not available on this device</string>
+    <string name="lock_key_invalidated">Your device lock screen changed, so the OS destroyed the vault key. Notes saved before that can no longer be decrypted. Unlock to continue with a new key.</string>
+    <string name="biometric_none_enrolled">No biometric or device credential is enrolled. Set one up in system settings.</string>
+
+    <!-- Vault list -->
+    <string name="vault_title">Your Vault</string>
+    <string name="vault_empty_title">Your vault is empty</string>
+    <string name="vault_empty_body">Tap + to create your first encrypted note.</string>
+    <string name="vault_search_hint">Search notes and tags</string>
+    <string name="vault_add">Add note</string>
+    <string name="vault_lock_now">Lock now</string>
+    <string name="vault_settings">Settings</string>
+
+    <!-- Editor -->
+    <string name="editor_new_title">New note</string>
+    <string name="editor_edit_title">Edit note</string>
+    <string name="editor_title_hint">Title</string>
+    <string name="editor_content_hint">Secret content…</string>
+    <string name="editor_tags_hint">Tags (comma separated)</string>
+    <string name="editor_save">Save</string>
+    <string name="editor_delete">Delete</string>
+    <string name="editor_copy">Copy content</string>
+    <string name="editor_copied">Copied. Clipboard clears in %1$d s.</string>
+    <string name="editor_error_empty">Title and content cannot both be empty.</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_autolock">Auto-lock timeout</string>
+    <string name="settings_autolock_summary">Lock the vault after this idle period.</string>
+    <string name="settings_dynamic_color">Dynamic color (Material You)</string>
+    <string name="settings_theme">Theme</string>
+    <string name="settings_theme_system">System default</string>
+    <string name="settings_theme_light">Light</string>
+    <string name="settings_theme_dark">Dark</string>
+    <string name="settings_security_header">Security</string>
+    <string name="settings_appearance_header">Appearance</string>
+
+    <!-- Common -->
+    <string name="action_back">Back</string>
+    <string name="action_retry">Retry</string>
+    <string name="error_generic">Something went wrong. Please try again.</string>
+    <string name="error_decrypt">Could not decrypt this note. The key may have been invalidated.</string>
+</resources>

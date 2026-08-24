@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Auto Backup is disabled application-wide (allowBackup="false").
+  These rules exist so that, even if backup were ever enabled, the encrypted
+  Room database and the DataStore preferences are explicitly excluded.
+-->
+<full-backup-content>
+    <exclude domain="database" path="." />
+    <exclude domain="sharedpref" path="." />
+    <exclude domain="file" path="datastore/" />
+</full-backup-content>
