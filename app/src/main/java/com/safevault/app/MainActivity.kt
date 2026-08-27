@@ -4,6 +4,7 @@ import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.fadeIn
@@ -47,7 +48,16 @@ class MainActivity : FragmentActivity() {
 
     private val lockErrorState = MutableStateFlow<String?>(null)
 
+    /** True only while the device has no biometric/credential enrolled. */
+    private val needsEnrollmentState = MutableStateFlow(false)
+
     private lateinit var biometricAuthenticator: BiometricAuthenticator
+
+    /** Re-checks availability when the user comes back from system settings. */
+    private val enrollmentLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+            promptUnlock()
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -79,7 +89,11 @@ class MainActivity : FragmentActivity() {
                     AppRoot(
                         lockManager = lockManager,
                         lockError = lockErrorState,
+                        needsEnrollment = needsEnrollmentState,
                         onRequestUnlock = ::promptUnlock,
+                        onRequestEnrollment = {
+                            BiometricAuthenticator.launchEnrollment(enrollmentLauncher)
+                        },
                     )
                 }
             }
@@ -88,7 +102,10 @@ class MainActivity : FragmentActivity() {
 
     /** Trigger the biometric / device-credential prompt. */
     private fun promptUnlock() {
-        when (biometricAuthenticator.availability()) {
+        val availability = biometricAuthenticator.availability()
+        needsEnrollmentState.value = availability == BiometricAvailability.NONE_ENROLLED
+
+        when (availability) {
             BiometricAvailability.AVAILABLE -> {
                 lockErrorState.value = null
                 biometricAuthenticator.authenticate(
@@ -126,11 +143,14 @@ class MainActivity : FragmentActivity() {
 private fun AppRoot(
     lockManager: VaultLockManager,
     lockError: MutableStateFlow<String?>,
+    needsEnrollment: MutableStateFlow<Boolean>,
     onRequestUnlock: () -> Unit,
+    onRequestEnrollment: () -> Unit,
 ) {
     val isUnlocked by lockManager.isUnlocked.collectAsStateWithLifecycle()
     val keyInvalidated by lockManager.keyInvalidated.collectAsStateWithLifecycle()
     val error by lockError.collectAsStateWithLifecycle()
+    val enrollmentNeeded by needsEnrollment.collectAsStateWithLifecycle()
     val navController = rememberNavController()
 
     // Auto-launch the prompt the first time we present the lock screen. After a
@@ -155,6 +175,7 @@ private fun AppRoot(
                     error
                 },
                 onUnlockClick = onRequestUnlock,
+                onEnrollClick = onRequestEnrollment.takeIf { enrollmentNeeded },
             )
         }
     }

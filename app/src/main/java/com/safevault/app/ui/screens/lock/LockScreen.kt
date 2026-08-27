@@ -12,6 +12,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -27,11 +28,15 @@ import com.safevault.app.R
  *
  * [errorMessage] surfaces a non-cancellation failure (e.g. no credential
  * enrolled) so the user understands why the vault will not open.
+ *
+ * [onEnrollClick] is non-null only when nothing is enrolled; it sends the user
+ * to system security settings, which is the only place the problem is fixable.
  */
 @Composable
 fun LockScreen(
     errorMessage: String?,
     onUnlockClick: () -> Unit,
+    onEnrollClick: (() -> Unit)? = null,
 ) {
     Column(
         modifier = Modifier
@@ -83,6 +88,15 @@ fun LockScreen(
                 text = stringResource(R.string.lock_unlock),
                 modifier = Modifier.padding(start = 8.dp),
             )
+        }
+
+        if (onEnrollClick != null) {
+            TextButton(
+                onClick = onEnrollClick,
+                modifier = Modifier.padding(top = 8.dp),
+            ) {
+                Text(text = stringResource(R.string.lock_open_security_settings))
+            }
         }
     }
 }

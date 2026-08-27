@@ -27,6 +27,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -36,6 +37,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.safevault.app.R
 import com.safevault.app.util.SecureClipboard
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -47,7 +49,13 @@ fun EditorScreen(
     val event by viewModel.events.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var showDeleteDialog by remember { mutableStateOf(false) }
+    // The clipboard self-clears, so the confirmation states the window too.
+    val copiedMessage = stringResource(
+        R.string.editor_copied,
+        (SecureClipboard.CLEAR_DELAY_MS / 1000).toInt(),
+    )
 
     LaunchedEffect(event) {
         when (val e = event) {
@@ -133,6 +141,10 @@ fun EditorScreen(
                                 label = "SafeVault secret",
                                 secret = state.content,
                             )
+                            scope.launch {
+                                snackbarHostState.currentSnackbarData?.dismiss()
+                                snackbarHostState.showSnackbar(copiedMessage)
+                            }
                         }) {
                             Icon(
                                 Icons.Rounded.ContentCopy,

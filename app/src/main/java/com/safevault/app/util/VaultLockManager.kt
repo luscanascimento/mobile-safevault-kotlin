@@ -36,8 +36,7 @@ class VaultLockManager @Inject constructor(
      * Latched once the OS destroys the vault key. The lock screen uses it to
      * explain why older notes can no longer be read.
      *
-     * ponytail: process-scoped only. Persist it if the warning must survive a
-     * cold start.
+     * Process-scoped only. Persist it if the warning must survive a cold start.
      */
     val keyInvalidated: StateFlow<Boolean> = _keyInvalidated.asStateFlow()
 
