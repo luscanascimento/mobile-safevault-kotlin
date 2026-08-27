@@ -1,11 +1,9 @@
 package com.safevault.app.domain.model
 
 /**
- * A decrypted vault note as used by the UI and domain layers.
- *
- * The plaintext [content] only ever exists in memory. It is encrypted with
- * AES-256-GCM (see the crypto layer) before being persisted and is discarded
- * as soon as the vault locks.
+ * A decrypted vault note as used by the UI and domain layers. The plaintext
+ * [content] is encrypted by the repository before it reaches storage; see
+ * `NoteEntity` for what is and is not persisted as ciphertext.
  */
 data class Note(
     val id: Long = 0L,
@@ -17,11 +15,8 @@ data class Note(
 )
 
 /**
- * Case-insensitive search rule over title, tags and the decrypted content.
+ * Case-insensitive substring search over title, tags and decrypted content.
  * A blank query matches everything.
- *
- * Matching is a pure in-memory pass on notes that were already decrypted for
- * the list, so typing costs no extra Keystore operations.
  */
 fun Note.matches(query: String): Boolean {
     val needle = query.trim()

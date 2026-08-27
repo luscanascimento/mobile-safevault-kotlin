@@ -1,6 +1,6 @@
 # SafeVault
 
-> An offline, hardware-encrypted notes & secrets vault for Android — your secrets never leave the device, never touch the network, and never hit the disk in plaintext.
+> An offline, hardware-encrypted notes & secrets vault for Android — note bodies never leave the device, never touch the network, and never hit the disk in plaintext.
 
 ![Platform](https://img.shields.io/badge/platform-Android-3DDC84?logo=android&logoColor=white)
 ![minSdk](https://img.shields.io/badge/minSdk-26-blue)
@@ -15,8 +15,9 @@ content is encrypted with **AES-256-GCM** using a **non-exportable,
 auth-bound key held in the Android Keystore** (StrongBox-backed where the
 hardware supports it). Biometrics are not a UI gate here — the Keystore itself
 refuses to run the cipher without a recent user authentication. The app is
-**100% offline** — it declares no `INTERNET` permission, so vault data
-physically cannot be exfiltrated.
+**offline by construction** — it declares no `INTERNET` permission, so its
+process cannot open a socket. (Data can still leave the way the user sends it:
+the clipboard, or a share intent.)
 
 ---
 
@@ -27,8 +28,10 @@ physically cannot be exfiltrated.
 - **Biometric lock screen** — unlock with fingerprint/face (class-3 STRONG)
   with an automatic **device-credential (PIN/pattern/password) fallback**. The
   vault key is bound to that authentication at the OS level.
-- **Auto-lock** — the vault re-locks when the app is backgrounded and after a
-  **configurable idle timeout** (immediate → 10 minutes).
+- **Auto-lock** — the app records a timestamp when it is backgrounded and
+  re-locks on the next return to the foreground if the **configurable idle
+  timeout** (immediate → 10 minutes) has elapsed. There is also a manual
+  *Lock now* action in the vault toolbar.
 - **Anti-leak UX** — `FLAG_SECURE` on the app window blocks screenshots and
   hides every screen from the recent-apps preview; copied secrets are
   **auto-wiped from the clipboard** after 30 seconds and flagged sensitive on
@@ -38,17 +41,9 @@ physically cannot be exfiltrated.
   no extra Keystore operations).
 - **Material You** — dynamic color on Android 12+, curated brand palette
   fallback, and light / dark / system themes.
-- **Robust states** — dedicated loading, empty, "no search results" and error
-  states throughout.
-
-### Why the security matters here
-
-> **Defense in depth is the product, not a checkbox.** Keys live in
-> hardware and are never readable by the app; content is authenticated-encrypted
-> so tampering is detected; the app is provably offline (no network permission);
-> and the runtime actively fights leakage (secure windows, clipboard wiping,
-> backup exclusion, aggressive auto-lock). Each control is mapped to its source
-> file in the [Security](#security) table below.
+- **Robust states** — the vault list has dedicated loading, empty, "no search
+  results" and error states; the editor has loading and save/delete error
+  handling.
 
 ---
 
@@ -60,7 +55,7 @@ physically cannot be exfiltrated.
 | UI                 | Jetpack Compose + Material 3 (Material You dynamic color)     |
 | Architecture       | MVVM + clean `data` / `domain` / `ui` layering               |
 | DI                 | Hilt (Dagger)                                                 |
-| Persistence        | Room (encrypted content columns) + DataStore (preferences)   |
+| Persistence        | Room (plain SQLite; the content column holds app-layer ciphertext) + DataStore (preferences) |
 | Async              | Kotlin Coroutines + Flow                                      |
 | Navigation         | Navigation-Compose                                            |
 | Security           | Android Keystore (AES-256-GCM via Cipher), BiometricPrompt    |
@@ -118,12 +113,12 @@ Every control maps to the file that implements it:
 | Key bound to biometric / device-credential auth  | `data/crypto/KeystoreCryptoManager.kt` (`setUserAuthenticationRequired`) |
 | Non-exportable, hardware-backed key (StrongBox)  | `data/crypto/KeystoreCryptoManager.kt` |
 | Per-record random IV, stored with ciphertext     | `data/crypto/CryptoManager.kt`, `data/db/NoteEntity.kt` |
-| No plaintext at rest (ciphertext columns only)   | `data/db/NoteEntity.kt`, `data/repository/NoteRepositoryImpl.kt` |
+| Content column stored as ciphertext (title/tags are plaintext metadata) | `data/db/NoteEntity.kt`, `data/repository/NoteRepositoryImpl.kt` |
 | Biometric + device-credential unlock             | `util/BiometricAuthenticator.kt`, `MainActivity.kt` |
 | Auto-lock on background + idle timeout           | `util/VaultLockManager.kt`, `MainActivity.kt` |
 | `FLAG_SECURE` (block screenshots / recents)      | `MainActivity.kt` (whole window) |
 | Clipboard auto-clear + sensitive flag            | `util/SecureClipboard.kt` |
-| No network access (offline guarantee)            | `AndroidManifest.xml` (no `INTERNET` permission) |
+| No network permission (process cannot open a socket) | `AndroidManifest.xml` (no `INTERNET` permission) |
 | Backup / device-transfer exclusion of vault data | `res/xml/backup_rules.xml`, `res/xml/data_extraction_rules.xml`, `allowBackup="false"` |
 | No secrets in source / VCS                        | `.gitignore` (keystores, `local.properties`), no hardcoded keys |
 
@@ -154,24 +149,34 @@ Every control maps to the file that implements it:
 - **Title/tags are metadata:** to keep search index-friendly, titles and tags
   are stored in plaintext. The UI guides users to keep secrets in the *content*
   field, which is always encrypted.
+- **The database file itself is not encrypted.** There is no SQLCipher here:
+  encryption is applied at the application layer, to one column. The `.db` file
+  is protected only by the app sandbox and Android's file-based encryption, so
+  a rooted device or an offline image dump exposes titles, tags and timestamps —
+  just not note bodies.
 
 ### Dependency choices
 
-- **`androidx.biometric:biometric:1.1.0`** — the newest *stable* release. The
-  1.2.0/1.4.0 lines are alpha-only and the `biometric-ktx` artifact has never
-  had a stable release at all, so a security-critical app has no business
-  shipping it: nothing here uses the `-ktx` coroutine wrappers
-  (`setAllowedAuthenticators`, `BIOMETRIC_STRONG` and `DEVICE_CREDENTIAL` all
-  exist in 1.1.0). Revisit when 1.4.0 goes stable.
+- **`androidx.biometric:biometric:1.1.0`** — pinned to the stable line. When
+  this was written the 1.2.0/1.4.0 lines were alpha-only, and nothing here needs
+  them: `setAllowedAuthenticators`, `BIOMETRIC_STRONG` and `DEVICE_CREDENTIAL`
+  all exist in 1.1.0, and the `-ktx` coroutine wrappers are unused. Check the
+  current release channel before copying this rationale.
 
 ### R8 / ProGuard
 
 Release builds enable **R8 full mode** (`isMinifyEnabled = true`,
-`isShrinkResources = true`). `app/proguard-rules.pro` keeps only what reflection
-needs: Room generated code, Hilt/Dagger components,
-and BiometricPrompt. Verbose `Log.v/d/i`
-calls are stripped from release via `-assumenosideeffects`. Always smoke-test a
-`release` build after changing dependencies, since full-mode R8 is aggressive.
+`isShrinkResources = true`). Verbose `Log.v/d/i` calls are stripped from release
+via `-assumenosideeffects`.
+
+Be aware of what `app/proguard-rules.pro` actually contains: the Room, Hilt and
+BiometricPrompt entries are **broad wildcard keeps**
+(`-keep class androidx.room.** { *; }` and friends), not minimal ones. All three
+libraries ship consumer rules that should make those keeps redundant, so they
+are trading shrinking for insurance. Narrowing them is a real TODO, and it needs
+a `release` APK smoke-tested on a device — not just a rules diff. Always
+smoke-test a `release` build after changing dependencies; full-mode R8 is
+aggressive.
 
 ---
 
@@ -228,10 +233,19 @@ requiring a device:
 - `SaveNoteUseCaseTest` — validation, insert-vs-update routing, tag normalization.
 - `ConvertersTest`, `AutoLockTimeoutTest` — persistence + policy mapping.
 
-`KeystoreCryptoManager` has **no** unit test: `AndroidKeyStore` and
-`KeyGenParameterSpec` only exist on a device/emulator, so a JVM test could only
-assert against a mock of the API under test. It is exercised manually on a
-device (see *Build & Run*).
+**Known coverage gaps — stated plainly:**
+
+- `KeystoreCryptoManager` has **no** automated test. `AndroidKeyStore` and
+  `KeyGenParameterSpec` only exist on a device/emulator, so a JVM test could
+  only assert against a mock of the API under test. It is exercised manually on
+  a device (see *Build & Run*).
+- There is **no `androidTest` source set** at all: no instrumented crypto
+  round-trip, no Room `MigrationTestHelper` against the schema exported in
+  `app/schemas/`, and no Compose UI test. Everything below the "runs on a real
+  device" line is verified by hand today.
+- CI (`.github/workflows/ci.yml`) runs `testDebugUnitTest` and `assembleDebug`
+  only — not `lint` and not `assembleRelease`, which means the R8 full-mode
+  risk flagged above is not covered by automation either.
 
 ```bash
 ./gradlew testDebugUnitTest
@@ -243,15 +257,15 @@ device (see *Build & Run*).
 
 - **Mobile security engineering:** correct use of the Android Keystore,
   AES-256-GCM with proper IV handling, biometric auth with credential fallback,
-  `FLAG_SECURE`, clipboard hygiene, backup exclusion, and a genuine offline
-  guarantee.
+  `FLAG_SECURE`, clipboard hygiene, backup exclusion, and an app that declares
+  no network permission at all.
 - **Clean architecture & testability:** strict `data`/`domain`/`ui` separation,
   repository interfaces in the domain, use-cases encapsulating business rules,
   and JVM-only tests for the critical paths.
 - **Modern Android UI:** idiomatic Jetpack Compose + Material 3 with Material You
   dynamic theming, unidirectional state, and complete empty/loading/error states.
 - **Production-grade tooling:** Hilt DI, Room + DataStore, a Gradle version
-  catalog, and R8 full-mode release configuration with curated keep rules.
+  catalog, and an R8 full-mode release configuration.
 
 ---
 
